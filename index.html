@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <title>Aile Bildirimi</title>
+  <meta name="description" content="Anne'den tek tıkla aile bildirimi" />
+
+  <!-- PWA -->
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#5DCAA5" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="Aile" />
+  <link rel="apple-touch-icon" href="icons/icon-192.png" />
+
+  <!-- OneSignal -->
+  <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
+  <script>
+    window.OneSignalDeferred = window.OneSignalDeferred || [];
+    OneSignalDeferred.push(async function(OneSignal) {
+      await OneSignal.init({
+        appId: "749e35bd-5a6c-425f-a41b-7afa188a84ee",
+        notifyButton: { enable: false },
+        serviceWorkerPath: "OneSignalSDKWorker.js"
+      });
+    });
+  </script>
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #f8f8f6;
+      --surface: #ffffff;
+      --text: #1a1a18;
+      --text2: #6b6b66;
+      --text3: #a0a09a;
+      --border: rgba(0,0,0,0.10);
+      --border2: rgba(0,0,0,0.18);
+      --green-light: #E1F5EE;
+      --green-mid: #5DCAA5;
+      --green-dark: #085041;
+      --purple-light: #EEEDFE;
+      --purple-dark: #3C3489;
+      --radius: 14px;
+      --radius-sm: 8px;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #18181a;
+        --surface: #242426;
+        --text: #f0f0ee;
+        --text2: #9a9a95;
+        --text3: #606060;
+        --border: rgba(255,255,255,0.10);
+        --border2: rgba(255,255,255,0.20);
+        --green-light: #0a2e22;
+        --green-dark: #9FE1CB;
+        --purple-light: #1a1840;
+        --purple-dark: #AFA9EC;
+      }
+    }
+
+    html, body {
+      height: 100%; width: 100%;
+      background: var(--bg);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      color: var(--text);
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .app {
+      max-width: 480px;
+      margin: 0 auto;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .screen { display: none; flex-direction: column; flex: 1; padding: 1.5rem 1rem 2rem; }
+    .screen.active { display: flex; }
+
+    /* Header */
+    .header {
+      display: flex; align-items: center; gap: 10px;
+      margin-bottom: 2rem;
+    }
+    .header-icon {
+      width: 44px; height: 44px; border-radius: 12px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 24px;
+    }
+    .header-icon.anne { background: var(--purple-light); }
+    .header-icon.aile { background: var(--green-light); }
+    .header-title { font-size: 20px; font-weight: 600; }
+    .header-sub { font-size: 13px; color: var(--text2); }
+
+    /* Big buttons (anne) */
+    .msg-btn {
+      width: 100%;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px 18px;
+      display: flex; align-items: center; gap: 16px;
+      cursor: pointer;
+      margin-bottom: 12px;
+      text-align: left;
+      transition: transform 0.1s, background 0.15s;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .msg-btn:active { transform: scale(0.97); }
+    .msg-btn:hover { background: var(--bg); }
+    .msg-emoji { font-size: 36px; line-height: 1; }
+    .msg-label { flex: 1; }
+    .msg-title { font-size: 18px; font-weight: 600; color: var(--text); display: block; }
+    .msg-sub { font-size: 13px; color: var(--text2); margin-top: 2px; display: block; }
+    .msg-arrow { font-size: 20px; color: var(--text3); }
+
+    /* Toast */
+    .toast {
+      display: flex; align-items: center; gap: 10px;
+      background: var(--green-light);
+      border: 1px solid var(--green-mid);
+      border-radius: var(--radius-sm);
+      padding: 12px 16px;
+      margin-bottom: 1.25rem;
+      color: var(--green-dark);
+      font-size: 14px; font-weight: 500;
+      opacity: 0; transform: translateY(-4px);
+      transition: opacity 0.2s, transform 0.2s;
+      pointer-events: none;
+    }
+    .toast.show { opacity: 1; transform: translateY(0); }
+
+    /* Divider */
+    .divider { border: none; border-top: 1px solid var(--border); margin: 1.5rem 0; }
+
+    /* Switch link */
+    .switch-link {
+      display: inline-flex; align-items: center; gap: 6px;
+      font-size: 14px; color: var(--text2);
+      background: none; border: none; cursor: pointer; padding: 0;
+    }
+    .switch-link:hover { color: var(--text); }
+
+    /* Aile screen */
+    .sub-btn {
+      width: 100%; padding: 16px;
+      border-radius: var(--radius);
+      border: 1px solid var(--border2);
+      background: var(--surface);
+      color: var(--text);
+      font-size: 15px; font-weight: 600;
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+      cursor: pointer; margin-bottom: 0.5rem;
+      transition: background 0.15s;
+    }
+    .sub-btn.active {
+      background: var(--green-light);
+      border-color: var(--green-mid);
+      color: var(--green-dark);
+    }
+    .perm-hint { font-size: 12px; color: var(--text3); text-align: center; margin-bottom: 1.5rem; line-height: 1.6; }
+
+    /* Tabs */
+    .tabs { display: flex; gap: 6px; margin-bottom: 1.25rem; }
+    .tab {
+      flex: 1; padding: 9px;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border);
+      background: var(--surface);
+      font-size: 14px; font-weight: 500;
+      color: var(--text2); cursor: pointer;
+      transition: all 0.15s;
+    }
+    .tab.active { background: var(--bg); color: var(--text); border-color: var(--border2); }
+
+    /* Notif cards */
+    .notif-list { display: flex; flex-direction: column; gap: 10px; }
+    .notif-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px 16px;
+      display: flex; align-items: flex-start; gap: 12px;
+      animation: slideIn 0.25s ease;
+    }
+    @keyframes slideIn {
+      from { opacity: 0; transform: translateY(-6px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .notif-card.fresh { border-color: var(--green-mid); background: var(--green-light); }
+    .notif-emoji { font-size: 28px; }
+    .notif-body { flex: 1; }
+    .notif-title { font-size: 15px; font-weight: 600; color: var(--text); }
+    .notif-meta { font-size: 12px; color: var(--text2); margin-top: 3px; }
+    .new-badge {
+      font-size: 11px; font-weight: 600;
+      background: var(--green-mid); color: #04342C;
+      padding: 2px 8px; border-radius: 20px;
+      align-self: flex-start; white-space: nowrap;
+    }
+
+    .empty {
+      text-align: center; padding: 3rem 1rem;
+      color: var(--text3); font-size: 14px; line-height: 1.8;
+    }
+    .empty-icon { font-size: 48px; display: block; margin-bottom: 12px; }
+
+    /* Members */
+    .member-list { display: flex; flex-direction: column; gap: 8px; }
+    .member-row {
+      display: flex; align-items: center; gap: 12px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 12px 14px;
+    }
+    .avatar {
+      width: 38px; height: 38px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 13px; font-weight: 600; flex-shrink: 0;
+    }
+    .av-p { background: var(--purple-light); color: var(--purple-dark); }
+    .av-g { background: var(--green-light); color: var(--green-dark); }
+    .av-o { background: #FAECE7; color: #993C1D; }
+    .member-name { flex: 1; font-size: 14px; font-weight: 500; }
+    .member-role { font-size: 12px; color: var(--text2); }
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green-mid); }
+
+    /* Bottom nav */
+    .bottom-nav {
+      display: flex;
+      border-top: 1px solid var(--border);
+      background: var(--surface);
+      position: fixed; bottom: 0; left: 0; right: 0;
+      z-index: 100;
+      max-width: 480px; margin: 0 auto;
+    }
+    .nav-btn {
+      flex: 1; padding: 12px 8px 16px;
+      display: flex; flex-direction: column; align-items: center; gap: 3px;
+      background: none; border: none; cursor: pointer;
+      font-size: 11px; font-weight: 500; color: var(--text3);
+      transition: color 0.15s;
+    }
+    .nav-btn.active { color: var(--green-mid); }
+    .nav-btn svg { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-width: 1.8; }
+
+    .content-pad { padding-bottom: 80px; }
+  </style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ANNE EKRANI -->
+  <div class="screen active" id="screen-anne">
+    <div class="header">
+      <div class="header-icon anne">👩</div>
+      <div>
+        <div class="header-title">Merhaba Anne 👋</div>
+        <div class="header-sub">Bir butona bas, haber gönder</div>
+      </div>
+    </div>
+
+    <div class="toast" id="toast">✅ <span id="toast-msg">Mesaj gönderildi!</span></div>
+
+    <div class="content-pad">
+      <button class="msg-btn" onclick="sendMsg('🍽️','Yemek hazır!','Masaya gelin, soğumasın')">
+        <span class="msg-emoji">🍽️</span>
+        <span class="msg-label">
+          <span class="msg-title">Yemek hazır!</span>
+          <span class="msg-sub">Masaya gelin, soğumasın</span>
+        </span>
+        <span class="msg-arrow">›</span>
+      </button>
+
+      <button class="msg-btn" onclick="sendMsg('☕','Çay hazır!','Çay demlenmiş, bekliyor')">
+        <span class="msg-emoji">☕</span>
+        <span class="msg-label">
+          <span class="msg-title">Çay hazır!</span>
+          <span class="msg-sub">Çay demlenmiş, bekliyor</span>
+        </span>
+        <span class="msg-arrow">›</span>
+      </button>
+
+      <button class="msg-btn" onclick="sendMsg('🛒','Market lazım','Birinin gitmesi lazım')">
+        <span class="msg-emoji">🛒</span>
+        <span class="msg-label">
+          <span class="msg-title">Market lazım</span>
+          <span class="msg-sub">Birinin gitmesi lazım</span>
+        </span>
+        <span class="msg-arrow">›</span>
+      </button>
+
+      <button class="msg-btn" onclick="sendMsg('🆘','Yardım lazım!','Lütfen yanıma gelin')">
+        <span class="msg-emoji">🆘</span>
+        <span class="msg-label">
+          <span class="msg-title">Yardım lazım!</span>
+          <span class="msg-sub">Lütfen yanıma gelin</span>
+        </span>
+        <span class="msg-arrow">›</span>
+      </button>
+
+      <button class="msg-btn" onclick="sendMsg('💊','İlaç vakti','İlaçlarımı almam lazım')">
+        <span class="msg-emoji">💊</span>
+        <span class="msg-label">
+          <span class="msg-title">İlaç vakti</span>
+          <span class="msg-sub">İlaçlarımı almam lazım</span>
+        </span>
+        <span class="msg-arrow">›</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- AİLE EKRANI -->
+  <div class="screen" id="screen-aile">
+    <div class="header">
+      <div class="header-icon aile">🔔</div>
+      <div>
+        <div class="header-title">Bildirimler</div>
+        <div class="header-sub">Anne'den haberler</div>
+      </div>
+    </div>
+
+    <button class="sub-btn" id="sub-btn" onclick="toggleSub()">
+      🔔 <span id="sub-label">Bildirimlere abone ol</span>
+    </button>
+    <p class="perm-hint" id="perm-hint">Butona basınca tarayıcı izin isteyecek — izin ver.</p>
+
+    <div class="tabs">
+      <button class="tab active" onclick="switchTab('notifs', this)">Mesajlar</button>
+      <button class="tab" onclick="switchTab('members', this)">Aile</button>
+    </div>
+
+    <div id="tab-notifs" class="content-pad">
+      <div class="notif-list" id="notif-list">
+        <div class="empty">
+          <span class="empty-icon">🔕</span>
+          Henüz mesaj yok.<br>Anne bir butona basınca<br>burada görünecek.
+        </div>
+      </div>
+    </div>
+
+    <div id="tab-members" style="display:none" class="content-pad">
+      <div class="member-list">
+        <div class="member-row">
+          <div class="avatar av-p">AN</div>
+          <div><div class="member-name">Anne</div><div class="member-role">Mesaj gönderir</div></div>
+          <div class="dot"></div>
+        </div>
+        <div class="member-row">
+          <div class="avatar av-g">BN</div>
+          <div><div class="member-name">Ben</div><div class="member-role">Bildirim alır</div></div>
+          <div class="dot"></div>
+        </div>
+        <div class="member-row">
+          <div class="avatar av-o">KR</div>
+          <div><div class="member-name">Kardeş</div><div class="member-role">Bildirim alır</div></div>
+          <div class="dot"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Bottom Nav -->
+<div class="bottom-nav">
+  <button class="nav-btn active" id="nav-anne" onclick="goScreen('anne')">
+    <svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+    Anne
+  </button>
+  <button class="nav-btn" id="nav-aile" onclick="goScreen('aile')">
+    <svg viewBox="0 0 24 24"><path d="M18 20a6 6 0 00-12 0"/><circle cx="12" cy="10" r="4"/><path d="M22 20a4 4 0 00-6-3.46"/><path d="M2 20a4 4 0 016-3.46"/></svg>
+    Aile
+  </button>
+</div>
+
+<script>
+  // --- State ---
+  let subscribed = false;
+  let notifications = [];
+  let freshIds = new Set();
+
+  // --- Screen nav ---
+  function goScreen(name) {
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+    document.getElementById('screen-' + name).classList.add('active');
+    document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+    document.getElementById('nav-' + name).classList.add('active');
+  }
+
+  // --- Tabs (aile) ---
+  function switchTab(tab, btn) {
+    document.getElementById('tab-notifs').style.display = tab === 'notifs' ? 'block' : 'none';
+    document.getElementById('tab-members').style.display = tab === 'members' ? 'block' : 'none';
+    document.querySelectorAll('.tab').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+  }
+
+  // --- Send message ---
+  function sendMsg(emoji, title, sub) {
+    const id = Date.now();
+    const now = new Date();
+    const time = now.getHours().toString().padStart(2,'0') + ':' + now.getMinutes().toString().padStart(2,'0');
+    notifications.unshift({ id, emoji, title, sub, time });
+    freshIds.add(id);
+    setTimeout(() => freshIds.delete(id), 5000);
+
+    showToast(title + ' — aile bildirildi!');
+    renderNotifs();
+
+    // OneSignal push (production)
+    if (window.OneSignal) {
+      OneSignalDeferred.push(async (os) => {
+        try {
+          await os.Notifications.requestPermission();
+        } catch(e) {}
+      });
+    }
+
+    // Native browser notif (same device fallback)
+    if (Notification.permission === 'granted') {
+      try { new Notification('Anne: ' + title, { body: sub, icon: 'icons/icon-192.png' }); } catch(e) {}
+    }
+  }
+
+  function showToast(msg) {
+    const t = document.getElementById('toast');
+    document.getElementById('toast-msg').textContent = msg;
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 3000);
+  }
+
+  function renderNotifs() {
+    const list = document.getElementById('notif-list');
+    if (!notifications.length) {
+      list.innerHTML = '<div class="empty"><span class="empty-icon">🔕</span>Henüz mesaj yok.<br>Anne bir butona basınca<br>burada görünecek.</div>';
+      return;
+    }
+    list.innerHTML = notifications.map(n => `
+      <div class="notif-card ${freshIds.has(n.id) ? 'fresh' : ''}">
+        <span class="notif-emoji">${n.emoji}</span>
+        <div class="notif-body">
+          <div class="notif-title">${n.title}</div>
+          <div class="notif-meta">${n.sub} · ${n.time}</div>
+        </div>
+        ${freshIds.has(n.id) ? '<span class="new-badge">yeni</span>' : ''}
+      </div>
+    `).join('');
+  }
+
+  // --- Subscribe ---
+  async function toggleSub() {
+    if (subscribed) {
+      subscribed = false;
+      document.getElementById('sub-btn').classList.remove('active');
+      document.getElementById('sub-label').textContent = 'Bildirimlere abone ol';
+      document.getElementById('perm-hint').textContent = 'Butona basınca tarayıcı izin isteyecek — izin ver.';
+      return;
+    }
+    try {
+      const perm = await Notification.requestPermission();
+      if (perm === 'granted') {
+        subscribed = true;
+        document.getElementById('sub-btn').classList.add('active');
+        document.getElementById('sub-label').textContent = 'Bildirimler açık ✓';
+        document.getElementById('perm-hint').textContent = 'Anne mesaj gönderdiğinde bildirim alacaksın.';
+        new Notification('Aile bildirimleri aktif! 🎉', { body: 'Anne bir butona basınca haber alacaksın.', icon: 'icons/icon-192.png' });
+      } else {
+        document.getElementById('perm-hint').textContent = '⚠️ İzin verilmedi. Tarayıcı ayarlarından bu site için izin aç.';
+      }
+    } catch(e) {
+      subscribed = true;
+      document.getElementById('sub-btn').classList.add('active');
+      document.getElementById('sub-label').textContent = 'Bildirimler açık ✓';
+    }
+  }
+
+  // --- PWA Service Worker ---
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('sw.js').catch(() => {});
+    });
+  }
+</script>
+</body>
+</html>
